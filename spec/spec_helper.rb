@@ -4,8 +4,10 @@
 require 'simplecov' if ENV['COVERAGE']
 
 require 'rspec'
-
 require 'loggability/spechelpers'
+require 'configurability/behavior'
+
+require 'assemblage'
 
 
 ### Mock with RSpec
@@ -16,6 +18,8 @@ RSpec.configure do |config|
 	config.mock_with( :rspec ) do |mock|
 		mock.syntax = :expect
 	end
+
+	config.extend( Loggability::SpecHelpers )
 end
 
 

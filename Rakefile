@@ -32,7 +32,8 @@ hoespec = Hoe.spec 'assemblage' do |spec|
 	spec.developer 'Michael Granger', 'ged@FaerieMUD.org'
 
 	spec.dependency 'loggability', '~> 0.11'
-	spec.dependency 'hglib', '~> 0.1'
+	spec.dependency 'configurability', '~> 3.2'
+	spec.dependency 'hglib', '~> 0'
 	spec.dependency 'git', '~> 1.3'
 	spec.dependency 'gli', '~> 2.17'
 	spec.dependency 'tty', '~> 0.7'
@@ -40,7 +41,8 @@ hoespec = Hoe.spec 'assemblage' do |spec|
 
 	spec.dependency 'hoe-deveiate',            '~> 0.3', :developer
 	spec.dependency 'simplecov',               '~> 0.7', :developer
-	spec.dependency 'rdoc-generator-fivefish', '~> 0.1', :developer
+	spec.dependency 'rdoc-generator-fivefish', '~> 0.4', :developer
+	spec.dependency 'rdoc', '~> 6.0', :developer
 
 	spec.require_ruby_version( '>=2.3.4' )
 	spec.hg_sign_tags = true if spec.respond_to?( :hg_sign_tags= )
