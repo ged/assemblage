@@ -1,16 +1,18 @@
 # Assemblage
 
+A continuous integration toolkit.
+
 home
-: http://bitbucket.org/ged/Assemblage
+: https://assembla.ge/
 
 code
-: http://bitbucket.org/ged/Assemblage
+: https://bitbucket.org/sascrotch/assemblage
 
 github
 : https://github.com/ged/assemblage
 
 docs
-: http://deveiate.org/code/assemblage
+: http://assembla.ge/docs/assemblage
 
 
 ## Description
@@ -24,6 +26,23 @@ It's still just a personal project, but if you want to use it I'm happy to
 answer questions and entertain suggestions, especially in the form of
 patches/PRs.
 
+Assemblage has three primary parts: the **Assembly Server**, **Assembly
+Workers**, and **Repositories**.
+
+<dl>
+  <dt>Assembly Server</dt>
+  <dd>Aggregates and distributes events from <em>repositories</em> to
+  <em>workers</em> via one or more "assemblies".</dd>
+
+  <dt>Assembly Workers</dt>
+  <dd>Listens for events published by the <em>assembly server</em>, checks out
+  a <em>repository</em>, and runs an assembly script in that repository.</dd>
+
+  <dt>Repository</dt>
+  <dd>A distributed version control repository. Assemblage currently supports
+  Mercurial and Git.</dd>
+</dl>
+
 
 
 ## Prerequisites
@@ -36,13 +55,12 @@ patches/PRs.
 
 ## Installation
 
-This example assumes three different servers for the repository, the assemblage
-server, and a client (worker). You can, of course, run all of this on a single
-host.
+This example uses three different servers for the three parts, but you can, of
+course, run all of this on a single host.
 
 You'll first need a server to manage your assemblies:
 
-    example $ sudo gem install assemblage-server
+    example $ sudo gem install assemblage
     example $ assemblage create-server /usr/local/assemblage
     Creating a server run directory in /usr/local/assemblage...
     Generating a server key...
@@ -155,9 +173,9 @@ Now when commits arrive at our repo, it will send events to the assemblage serve
 
 ## Contributing
 
-You can check out the current development source with Mercurial via its
-{project page}[http://bitbucket.org/ged/assemblage]. Or if you prefer Git, via
-{its Github mirror}[https://github.com/ged/assemblage].
+You can check out the current development source with Mercurial via
+[Bitbucket](http://bitbucket.org/sascrotch/assemblage). Or if you prefer Git,
+via [its Github mirror](https://github.com/ged/assemblage).
 
 After checking out the source, run:
 

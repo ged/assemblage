@@ -17,7 +17,10 @@ Hoe.plugins.delete :rubyforge
 
 hoespec = Hoe.spec 'assemblage' do |spec|
 	spec.urls = {
-		home:   'https://assembla.ge/'
+		home: 'https://assembla.ge/',
+		code: 'https://bitbucket.org/sascrotch/assemblage',
+		github: 'https://github.com/ged/assemblage',
+		docs: 'http://assembla.ge/docs/assemblage'
 	}
 
 	spec.readme_file = 'README.md'
@@ -43,7 +46,7 @@ hoespec = Hoe.spec 'assemblage' do |spec|
 	spec.hg_sign_tags = true if spec.respond_to?( :hg_sign_tags= )
 	spec.check_history_on_release = true if spec.respond_to?( :check_history_on_release= )
 
-	self.rdoc_locations << "deveiate:/usr/local/www/public/code/#{remote_rdoc_dir}"
+	self.rdoc_locations << "deveiate:/usr/local/assemblage/docs/#{remote_rdoc_dir}"
 end
 
 
@@ -72,9 +75,9 @@ if File.directory?( '.hg' )
 
 	Rake::Task[ 'docs' ].clear
 	RDoc::Task.new( 'docs' ) do |rdoc|
-	    rdoc.main = "README.rdoc"
+	    rdoc.main = "README.md"
 		rdoc.markup = 'markdown'
-	    rdoc.rdoc_files.include( "*.rdoc", "ChangeLog", "lib/**/*.rb" )
+	    rdoc.rdoc_files.include( "*.md", "*.rdoc", "ChangeLog", "lib/**/*.rb" )
 	    rdoc.generator = :fivefish
 		rdoc.title = 'Assemblage'
 	    rdoc.rdoc_dir = 'doc'
