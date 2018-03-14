@@ -6,5 +6,7 @@ hglib
 hoe-deveiate
 loggability
 rdoc-generator-fivefish
+sequel
 simplecov
+sqlite3
 tty

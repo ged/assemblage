@@ -19,7 +19,7 @@ RSpec.configure do |config|
 		mock.syntax = :expect
 	end
 
-	config.extend( Loggability::SpecHelpers )
+	config.include( Loggability::SpecHelpers )
 end
 
 

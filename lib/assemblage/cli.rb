@@ -13,6 +13,7 @@ require 'assemblage/mixins'
 # The command-line interface to Assemblage.
 module Assemblage::CLI
 	extend Loggability,
+	       Assemblage::MethodUtilities,
 	       GLI::App
 
 

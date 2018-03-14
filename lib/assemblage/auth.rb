@@ -1,6 +1,7 @@
 # -*- ruby -*-
 #encoding: utf-8
 
+require 'cztop'
 require 'configurability'
 require 'loggability'
 
