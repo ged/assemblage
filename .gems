@@ -1,1 +1,9 @@
+cztop-reactor
+git
+gli
+hglib
 hoe-deveiate
+loggability
+rdoc-generator-fivefish
+simplecov
+tty

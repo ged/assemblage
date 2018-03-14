@@ -14,9 +14,11 @@ Hoe.plugin :signing
 Hoe.plugin :deveiate
 
 Hoe.plugins.delete :rubyforge
-Hoe.plugins.delete :gemcutter # Remove for public gems
 
 hoespec = Hoe.spec 'assemblage' do |spec|
+	spec.urls = {
+		home:   'https://assembla.ge/'
+	}
 
 	spec.readme_file = 'README.md'
 	spec.history_file = 'History.md'
@@ -27,12 +29,17 @@ hoespec = Hoe.spec 'assemblage' do |spec|
 	spec.developer 'Michael Granger', 'ged@FaerieMUD.org'
 
 	spec.dependency 'loggability', '~> 0.11'
+	spec.dependency 'hglib', '~> 0.1'
+	spec.dependency 'git', '~> 1.3'
+	spec.dependency 'gli', '~> 2.17'
+	spec.dependency 'tty', '~> 0.7'
+	spec.dependency 'cztop-reactor', '~> 0.3'
 
 	spec.dependency 'hoe-deveiate',            '~> 0.3', :developer
 	spec.dependency 'simplecov',               '~> 0.7', :developer
 	spec.dependency 'rdoc-generator-fivefish', '~> 0.1', :developer
 
-	spec.require_ruby_version( '>=2.5.0' )
+	spec.require_ruby_version( '>=2.3.4' )
 	spec.hg_sign_tags = true if spec.respond_to?( :hg_sign_tags= )
 	spec.check_history_on_release = true if spec.respond_to?( :check_history_on_release= )
 
