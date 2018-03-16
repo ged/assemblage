@@ -4,6 +4,7 @@
 require 'simplecov' if ENV['COVERAGE']
 
 require 'rspec'
+require 'rspec/wait'
 require 'loggability/spechelpers'
 require 'configurability/behavior'
 
@@ -18,6 +19,9 @@ RSpec.configure do |config|
 	config.mock_with( :rspec ) do |mock|
 		mock.syntax = :expect
 	end
+
+	# rspec-wait
+	config.wait_timeout = 3
 
 	config.include( Loggability::SpecHelpers )
 end

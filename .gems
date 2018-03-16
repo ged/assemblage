@@ -6,6 +6,7 @@ hglib
 hoe-deveiate
 loggability
 rdoc-generator-fivefish
+rspec-wait
 sequel
 simplecov
 sqlite3

@@ -10,10 +10,10 @@ module Assemblage::CLI::CreateServer
 
 	ADVICE = %{
 		You can start the assembly server like so:
-		  assemblage start-server %{directory}s
+		  assemblage start-server %{directory}
 
 		Server public key is:
-		  %{public_key}s
+		  %{public_key}
 
 	}.gsub( /^\t+/, '' )
 
@@ -43,5 +43,5 @@ module Assemblage::CLI::CreateServer
 		end
 	end
 
-end # module Assemblage::CLI::New
+end # module Assemblage::CLI::CreateServer
 

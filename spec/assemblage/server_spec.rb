@@ -99,17 +99,59 @@ describe Assemblage::Server do
 		end
 
 
-		it "raises an error if the cert already exists" do
+		it "doesn't raise an error if the cert already exists" do
 			server = described_class.new( assembly_dir )
 			server.generate_cert
 
 			expect {
 				server.generate_cert
-			}.to raise_error( /already exists/i )
+			}.to_not raise_error
 		end
 
 	end
 
+
+	describe "signal-handling" do
+
+		before( :each ) do
+			@server = described_class.new( assembly_dir )
+			@server.setup_run_directory
+			@server.generate_cert
+			@server.create_database
+
+			@server_thread = Thread.new do
+				Thread.current.abort_on_exception = true
+				@server.start
+			end
+		end
+
+		after( :each ) do
+			@server.stop
+			@server_thread.kill unless @server_thread.join( 2 )
+		end
+
+
+		it "stops when sent a TERM signal" do
+			wait( 1 ).for { @server.running? }.to be_truthy
+			@server.simulate_signal( :TERM )
+			wait( 1 ).for { @server.stopped? }.to be_truthy
+		end
+
+
+		it "stops when sent an INT signal" do
+			wait( 1 ).for { @server.running? }.to be_truthy
+			@server.simulate_signal( :INT )
+			wait( 1 ).for { @server.stopped? }.to be_truthy
+		end
+
+
+		it "stops when sent a HUP signal" do
+			wait( 1 ).for { @server.running? }.to be_truthy
+			@server.simulate_signal( :HUP )
+			wait( 1 ).for { @server.stopped? }.to be_truthy
+		end
+
+	end
 
 end
 

@@ -45,6 +45,7 @@ hoespec = Hoe.spec 'assemblage' do |spec|
 	spec.dependency 'rdoc-generator-fivefish', '~> 0.4', :developer
 	spec.dependency 'rdoc', '~> 6.0', :developer
 	spec.dependency 'sqlite3', '~> 1.3', :developer
+	spec.dependency 'rspec-wait', '~> 0.0', :developer
 
 	spec.require_ruby_version( '>=2.3.4' )
 	spec.hg_sign_tags = true if spec.respond_to?( :hg_sign_tags= )

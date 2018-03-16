@@ -40,7 +40,8 @@ module Assemblage::Auth
 
 	### Check the runtime environment for required setup (e.g., CURVE auth)
 	def self::check_environment
-		CZTop::Certificate.check_curve_availability
+		warn "ZeroMQ was built without CURVE, so authentication will be broken" unless
+			CZMQ::FFI::Zsys.has_curve
 	end
 
 

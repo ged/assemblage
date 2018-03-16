@@ -26,7 +26,7 @@ class Assemblage::DbObject
 
 
 	# Loggability API -- log to Assemblage's logger
-	log_as :assemblage
+	log_to :assemblage
 
 	#
 	# Sequel extensions and plugins
@@ -45,6 +45,22 @@ class Assemblage::DbObject
 	# The Set of model class files to load after the connection is established
 	singleton_attr_reader :registered_models
 	@registered_models = Set.new
+
+
+	# Configurability API
+	configurability( 'assemblage.db' ) do
+
+		##
+		# :singleton-method:
+		# The URI of the database to connect to
+		setting :uri, default: 'sqlite:/'
+
+		##
+		# :singleton-method:
+		# A Hash of options to use when creating the database connections
+		setting :options, default: { log_warn_duration: 0.02 }
+
+	end
 
 
 	### Reset the database connection that all model objects will use to +newdb+ (a
@@ -96,30 +112,19 @@ class Assemblage::DbObject
 	end
 
 
-	# Configurability API
-	configurability( 'assemblage.db' ) do
-
-		##
-		# :singleton-method:
-		# The URI of the database to connect to
-		setting :uri, default: 'sqlite:/'
-
-		##
-		# :singleton-method:
-		# A Hash of options to use when creating the database connections
-		setting :options, default: { log_warn_duration: 0.02 }
+	### Set up the metastore database and migrate to the latest version.
+	def self::setup_database
+		unless self.database_is_current?
+			self.log.info "Installing database schema in %s..." % [ self.db ]
+			Sequel::Migrator.apply( self.db, self.migrations_dir.to_s )
+		end
 	end
 
 
-	### Set up the metastore database and migrate to the latest version.
-	def self::setup_database
-		is_current = Loggability.with_level( :fatal ) do
+	### Returns +true+ if the database for the model classes exist.
+	def self::database_is_current?
+		return Loggability.with_level( :fatal ) do
 			Sequel::Migrator.is_current?( self.db, self.migrations_dir.to_s )
-		end
-
-		unless is_current
-			self.log.info "Installing database schema in %s..." % [ self.db ]
-			Sequel::Migrator.apply( self.db, self.migrations_dir.to_s )
 		end
 	end
 

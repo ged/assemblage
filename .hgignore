@@ -1,3 +1,5 @@
 /html/
 doc/
 ChangeLog
+coverage/
+\.lock$
