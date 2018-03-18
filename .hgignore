@@ -3,3 +3,4 @@ doc/
 ChangeLog
 coverage/
 \.lock$
+\.yml$

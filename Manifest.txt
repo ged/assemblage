@@ -14,6 +14,7 @@ lib/assemblage.rb
 lib/assemblage/auth.rb
 lib/assemblage/cli.rb
 lib/assemblage/command/create_server.rb
+lib/assemblage/command/create_worker.rb
 lib/assemblage/command/start_server.rb
 lib/assemblage/db_object.rb
 lib/assemblage/mixins.rb
