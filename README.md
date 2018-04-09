@@ -17,16 +17,12 @@ docs
 
 ## Description
 
-Assemblage is a continuous integration toolkit. It's intended to provide you
-with a minimal infrastructure for distributing and performing automated tasks
+Assemblage is a continuous integration library. It's intended to provide you
+with a minimal toolkit for distributing and performing automated tasks
 for one or more version control repositories. It makes as few assumptions as
-possible as to what those things might be.
+possible as to what those tasks might be.
 
-It's still just a personal project, but if you want to use it I'm happy to
-answer questions and entertain suggestions, especially in the form of
-patches/PRs.
-
-Assemblage has three primary parts: the **Assembly Server**, **Assembly
+A task in Assemblage is called an Assembly. Assemblage has three primary parts for manipulating Assemblies: the **Assembly Server**, **Assembly
 Workers**, and **Repositories**.
 
 <dl>
@@ -44,7 +40,6 @@ Workers**, and **Repositories**.
 </dl>
 
 
-
 ## Prerequisites
 
 * Ruby
@@ -55,25 +50,25 @@ Workers**, and **Repositories**.
 
 ## Installation
 
-This example uses three different servers for the three parts, but you can, of
+This example uses three different hosts for the three parts, but you can, of
 course, run all of this on a single host.
 
 You'll first need a server to manage your assemblies:
 
     example $ sudo gem install assemblage
-    example $ assemblage create-server /usr/local/assemblage
+    example $ assemblage create server /usr/local/assemblage
     Creating a server run directory in /usr/local/assemblage...
     Generating a server key...
     Creating the assemblies database...
     done.
 
     You can start the assembly server like so:
-      assemblage start-server /usr/local/assemblage
+      assemblage -c /usr/local/assemblage/config.yml start server
     
     Server public key is:
       &}T0.[{MZSJC]roN-{]x2QCkG+dXki!6j!.1JU1u
 
-    example $ assemblage start-server /usr/local/assemblage
+    example $ assemblage -c /usr/local/assemblage/config.yml start server
     Starting assembly server at:
       tcp://example.com:7872
 
@@ -87,37 +82,36 @@ can make it as simple or complex as you want.
     user@example-client $ sudo gem install assemblage
     user@example-client $ mkdir -p /usr/local/assemblage
     user@example-client $ cd /usr/local/assemblage
-    user@example-client $ assemblage create-worker \
-      -t freebsd,freebsd11,ruby,ruby24,ruby25,python,\
-      python27,zeromq,libpq worker1
+    user@example-client $ assemblage create worker \
+      -t freebsd,freebsd11,ruby,ruby24,ruby25,python,python27,zeromq,libpq worker1
     Creating a new assembly worker run directory in
       /usr/local/assemblage/worker1...
     Set up with worker name: example-client-worker1
+    Client public key is:
+      PJL=qK@SHy3#re-w@W)4C]Aj+aD}toGf*Y*SOOZ4
     done.
 
-Tell it that it should talk to the new server we just set up:
+Now we need to register the client with the server. On the server host:
+
+    user@example $ assemblage add worker example-client-worker1 \
+      "PJL=qK@SHy3#re-w@W)4C]Aj+aD}toGf*Y*SOOZ4"
+    Approving connections from example-client-worker1...
+    done.
+
+Now go back to the worker and tell it that it should talk to the new server we
+just set up:
 
     user@example-client $ cd /usr/local/assemblage/worker1
-    user@example-client $ assemblage add-server \
-      --key="&}T0.[{MZSJC]roN-{]x2QCkG+dXki!6j!.1JU1u" \
-      tcp://example.com:7872
+    user@example-client $ assemblage add server \
+      tcp://example.com:7872 "&}T0.[{MZSJC]roN-{]x2QCkG+dXki!6j!.1JU1u"
     Talking to tcp://example.com:7872...
-    Registering client `example-client-worker1`...
-    Requesting a client key...
-    done.
-
-This will register the client with the server, but it needs to be approved
-on the server before it can start working:
-
-    user@example $ assemblage approve-worker example-client-worker1
-    Looking for worker registration... found.
-    Approving connections from example-client-worker1...
+    Testing registration... success.
     done.
 
 Now you can start the worker, which will listen for jobs it can work on.
 
     user@example-client $ cd /usr/local/assemblage/worker1
-    user@example-client $ assemblage start-worker
+    user@example-client $ assemblage start worker
     Starting assembly worker `worker1`...
     Connecting to assembly servers...
        example... done.
@@ -126,18 +120,25 @@ Now you can start the worker, which will listen for jobs it can work on.
 Now we need our repositories to notify the assembly server when events occur.
 We'll hook up a Mercurial repo for a Ruby library so that it runs unit tests
 whenever there's a new commit. First we'll install assemblage on the repo
-server and add the server we're going to send events to:
+server and create a run directory for repo operations:
 
-    user@example-repo $ sudo gem install assemblage
-    user@example-repo $ cd /usr/local/hg/repos/project1
-    user@example-repo $ hg init
-    user@example-repo $ assemblage add-repo \
-      --type=hg \
-      --key="&}T0.[{MZSJC]roN-{]x2QCkG+dXki!6j!.1JU1u" \
-      http://repo.example.com/project1 tcp://example.com:7872 
-    Talking to tcp://example.com:7872...
-    Registering repo `http://repo.example.com/project1`...
-    Requesting a repo key...
+    user@example-repo $ sudo gem install assemblage hglib
+    user@example-repo $ mkdir /usr/local/hg/repos/.assemblage
+    user@example-repo $ cd /usr/local/hg/repos/.assemblage
+    user@example-repo $ assemblage create repo project1
+    Creating a new assemblage repo run directory in
+      /usr/local/hg/repos/.assemblage...
+    Set up with repo name: project1
+    Client public key is:
+      bq9VheQbLtcu]LGK4I&xzK3^UW0Iyak/6<YS=^$w
+    done.
+
+Now we'll need to register the repo on the server like we did before for the
+worker:
+
+    user@example $ assemblage add repo project1 http://repo.example.com/project1
+    Looking for repo registration... found.
+    Approving repo events from http://repo.example.com/project1...
     done.
 
 We'll add a hook to the repository's .hg/hgrc that looks like:
@@ -145,13 +146,6 @@ We'll add a hook to the repository's .hg/hgrc that looks like:
     [hooks]
     incoming.assemblage = /usr/local/bin/assemblage send-event commit \
       project1 $HG_NODE
-
-We'll need to approve the repo registration now too:
-
-    user@example $ assemblage approve-repo http://repo.example.com/project1
-    Looking for repo registration... found.
-    Approving repo events from http://repo.example.com/project1...
-    done.
 
 And finally, we'll combine all the parts into an assembly called
 `project1-freebsd-tests` that will run on a worker with the `freebsd`, `ruby`,
@@ -161,7 +155,7 @@ and `libpq` tags for each commit to the repo at
     user@example $ assemblage add -t freebsd,ruby,libpq \
       http://repo.example.com/project1
 
-Now when commits arrive at our repo, it will send events to the assemblage server, which will queue up an assembly. Because the worker we added has all of the required tags, it will:
+Now when commits arrive at our repo, it will send events to the assembly server, which will queue up an assembly. Because the worker we added has all of the required tags, it will:
 
 - get a notification of the commit
 - clone the repository checked out to that commit

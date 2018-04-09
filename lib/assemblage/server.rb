@@ -22,11 +22,19 @@ class Assemblage::Server
 	extend Loggability,
 	       Configurability,
 	       Assemblage::MethodUtilities
-	include CZTop::Reactor::SignalHandling
-
+	include CZTop::Reactor::SignalHandling,
+	        Assemblage::SocketMonitorLogging
 
 	# The list of signals the server responds to
 	HANDLED_SIGNALS = %i[TERM HUP INT] & Signal.list.keys.map( &:to_sym )
+
+	# The ZAP authentication domain the server will use
+	ZAP_DOMAIN = 'assemblage'
+
+	# The list of valid commands for clients
+	VALID_COMMANDS = %i[
+		status
+	]
 
 
 	# Log to the Assemblage logger
@@ -48,19 +56,76 @@ class Assemblage::Server
 
 		##
 		# :singleton-method:
-		# The ZMQ endpoint to use when connecting to the server.
+		# The default ZMQ endpoint to listen on for connections from clients and repos
 		setting :endpoint, default: 'tcp://127.0.0.1:*'
 
 	end
 
 
+	### Set up the Server's directory as an Assemblage run directory. Raises an
+	### exception if the directory already exists and is not empty.
+	def self::setup_run_directory( directory )
+		directory = Pathname( directory )
 
-	### Create a new Assemblage::Server that will run in the specified +directory+.
-	def initialize( directory='.' )
-		@directory = Pathname( directory || '.' ).expand_path
+		raise "Directory not empty" if directory.exist? && !directory.empty?
+
+		self.log.debug "Attempting to set up %s as a run directory." % [ directory ]
+		directory.mkpath
+		directory.chmod( 0755 )
+
+		config = Assemblage.config || Configurability.default_config
+		config.assemblage.auth.cert_store_dir ||= (directory + 'certs').to_s
+		config.assemblage.db.uri = "sqlite:%s" % [ directory + 'assemblage.db' ]
+
+		config.install
+		config.write( directory + Assemblage::DEFAULT_CONFIG_FILE )
+	end
+
+
+	### Generate a new server cert/keypair for authentication.
+	def self::generate_cert
+		Assemblage::Auth.generate_local_cert unless Assemblage::Auth.has_local_cert?
+	end
+
+
+	### Return the server's public key as a Z85-encoded ASCII string.
+	def self::public_key
+		return Assemblage::Auth.local_cert.public_key
+	end
+
+
+	### Create the database the assembly information is tracked in.
+	def self::create_database
+		Assemblage::DbObject.setup_database unless Assemblage::DbObject.database_is_current?
+	end
+
+
+	### Add a worker with the specified +name+ and +public_key+ to the current run
+	### directory.
+	def self::add_worker( name, public_key )
+		cert = Assemblage::Auth.save_remote_cert( name, public_key )
+		client = Assemblage::Client.create( name: name, type: 'worker' )
+
+		return client.id
+	end
+
+
+	### Run an instance of the server from the specified +run_directory+.
+	def self::run( run_directory=nil, **options )
+		Assemblage.use_run_directory( run_directory )
+		return self.new( **options ).run
+	end
+
+
+	#
+	# Instance methods
+	#
+
+	### Create a new Assemblage::Server.
+	def initialize( endpoint: nil )
+		@endpoint  = endpoint || Assemblage::Server.endpoint
 		@reactor   = CZTop::Reactor.new
 		@socket    = nil
-		@thread    = nil
 		@monitor   = nil
 		@running   = false
 	end
@@ -71,8 +136,8 @@ class Assemblage::Server
 	######
 
 	##
-	# The Pathname of the Server's run directory.
-	attr_reader :directory
+	# The endpoint to listen on for connections from workers and repos.
+	attr_reader :endpoint
 
 	##
 	# The CZTop::Reactor that handles asynchronous IO, timed events, and signals.
@@ -83,10 +148,6 @@ class Assemblage::Server
 	attr_reader :socket
 
 	##
-	# The Thread of the running server (if it's running)
-	attr_reader :thread
-
-	##
 	# The CZTop::Monitor for the server socket
 	attr_reader :monitor
 
@@ -95,11 +156,12 @@ class Assemblage::Server
 	attr_predicate :running
 
 
-	### Start the server.
-	def start
-		self.log.info "Starting assembly server."
+	### Run the server.
+	def run
 		Assemblage::Auth.check_environment
-		Assemblage::Auth.authenticator.verbose! #if $DEBUG
+		self.log.info "Starting assembly server."
+
+		Assemblage::Auth.authenticator.verbose! if $DEBUG
 
 		@socket = self.create_server_socket
 		self.reactor.register( @socket, :read, &self.method(:on_socket_event) )
@@ -123,53 +185,16 @@ class Assemblage::Server
 	end
 
 
-	### If the server's socket is bound, return the endpoint it's listening on.
-	def endpoint
-		return self.socket&.last_endpoint
-	end
-
-
 	### Returns +true+ if the server is *not* running.
 	def stopped?
 		return ! self.running?
 	end
 
 
-	### Set up the Server's directory as an Assemblage run directory. Raises an
-	### exception if the directory already exists and is not empty.
-	def setup_run_directory
-		raise "Directory not empty" if self.directory.exist? && !self.directory.empty?
-
-		self.log.debug "Attempting to set up %s as a run directory." % [ self.directory ]
-		self.directory.mkpath
-		self.directory.chmod( 0755 )
-
-		config = Assemblage.config || Configurability.default_config
-		config.assemblage.directory = self.directory.to_s
-		config.assemblage.auth.cert_store_dir ||= (self.directory + 'certs').to_s
-		config.assemblage.db.uri = "sqlite:%s" % [ self.directory + 'assemblage.db' ]
-
-		config.write( self.directory + Assemblage::DEFAULT_CONFIG_FILE.basename )
-
-		config.install
-	end
-
-
-	### Generate a new server cert/keypair for authentication.
-	def generate_cert
-		Assemblage::Auth.generate_server_cert unless Assemblage::Auth.has_server_cert?
-	end
-
-
-	### Return the server's public key as a Z85-encoded ASCII string.
-	def public_key
-		return Assemblage::Auth.server_cert.public_key
-	end
-
-
-	### Create the database the assembly information is tracked in.
-	def create_database
-		Assemblage::DbObject.setup_database unless Assemblage::DbObject.database_is_current?
+	### If the server's socket is bound, return the endpoint it's listening on. This
+	### can be different than #endpoint if the specified endpoint is ephemeral.
+	def last_endpoint
+		return self.socket&.last_endpoint
 	end
 
 
@@ -181,14 +206,14 @@ class Assemblage::Server
 	### workers, creating and binding it first if necessary.
 	def create_server_socket
 		self.log.debug "Creating a SERVER socket bound to: %s" % [ endpoint ]
-		sock = CZTop::Socket::SERVER.new( endpoint )
+		sock = CZTop::Socket::SERVER.new
 
-		sock.CURVE_server!( Assemblage::Auth.server_cert )
+		sock.CURVE_server!( Assemblage::Auth.local_cert )
 		sock.options.heartbeat_ivl     = self.class.heartbeat_interval
 		sock.options.heartbeat_timeout = self.class.heartbeat_timeout
-		sock.options.zap_domain        = 'FaerieMUD'
+		sock.options.zap_domain        = ZAP_DOMAIN
 
-		sock.bind( self.class.endpoint )
+		sock.bind( self.endpoint )
 
 		return sock
 	end
@@ -210,72 +235,17 @@ class Assemblage::Server
 	def handle_client_input( event )
 		message = event.socket.receive
 		frame = message.frames.first # CLIENT/SERVER can't be multipart
+		clientname = frame.meta( 'clientname' )
 
-		self.log.debug "Got message %p from %p" % [ frame.to_a, frame.meta('clientname') ]
+		type, data, header = Assemblage::Protocol.decode( frame )
+
+		self.log.debug "Got message %p from %p" % [ frame.to_a, clientname ]
 	end
 
 
 	### Dequeue a message from the output queue and route it to the appropriate user.
 	def handle_client_output( event )
 		self.log.debug "Socket was writable."
-	end
-
-
-	### Handle events from the SERVER socket's monitor.
-	def on_monitor_event( poll_event )
-		self.log.debug "Got monitor event: %p" % [ poll_event ]
-
-		msg = poll_event.socket.receive
-		type, *payload = *msg
-		callback_name = "on_#{type.downcase}"
-
-		if self.respond_to?( callback_name, true )
-			self.send( callback_name, *payload )
-		else
-			self.log.warn "No handler (#%s) for monitored %s event." % [ callback_name, type ]
-		end
-	end
-
-
-	### Monitor event callback for socket connection events
-	def on_connected( fd, endpoint )
-		self.log.debug "Client socket on FD %d connected" % [ fd ]
-		self.publish( 'socket/connected', fd, endpoint )
-	end
-
-
-	### Monitor event callback for socket accepted events
-	def on_accepted( fd, endpoint )
-		self.log.debug "Client socket on FD %d accepted" % [ fd ]
-		self.publish( 'socket/accepted', fd, endpoint )
-	end
-
-
-	### Monitor event callback for successful auth events.
-	def on_handshake_succeed( fd, endpoint )
-		self.log.debug "Client socket on FD %d handshake succeeded" % [ fd ]
-		self.publish( 'socket/auth/success', fd, endpoint )
-	end
-
-
-	### Monitor event callback for failed auth events.
-	def on_handshake_failed( fd, endpoint )
-		self.log.debug "Client socket on FD %d handshake failed" % [ fd ]
-		self.publish( 'socket/auth/failure', fd, endpoint )
-	end
-
-
-	### Monitor event callback for socket closed events
-	def on_closed( fd, endpoint )
-		self.log.debug "Client socket on FD %d closed" % [ fd ]
-		self.publish( 'socket/closed', fd, endpoint )
-	end
-
-
-	### Monitor event callback for socket disconnection events
-	def on_disconnected( fd, endpoint )
-		self.log.debug "Client socket on FD %d disconnected" % [ fd ]
-		self.publish( 'socket/disconnected', fd, endpoint )
 	end
 
 
@@ -289,7 +259,6 @@ class Assemblage::Server
 			super
 		end
 	end
-
 
 end # class Assemblage::Server
 

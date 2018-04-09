@@ -16,6 +16,7 @@ RSpec.configure do |config|
 	config.run_all_when_everything_filtered = true
 	config.filter_run :focus
 	config.order = 'random'
+	config.example_status_persistence_file_path = 'spec/.status'
 	config.mock_with( :rspec ) do |mock|
 		mock.syntax = :expect
 	end

@@ -5,6 +5,7 @@ gli
 hglib
 hoe-deveiate
 loggability
+msgpack
 rdoc-generator-fivefish
 rspec-wait
 sequel

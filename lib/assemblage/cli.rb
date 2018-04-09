@@ -234,6 +234,11 @@ module Assemblage::CLI
 			$DEBUG = true
 			Loggability.level = :debug
 		end
+
+		if global[:loglevel]
+			Loggability.level = global[:loglevel]
+		end
+
 	end
 
 

@@ -8,37 +8,36 @@ require 'assemblage'
 
 describe Assemblage do
 
-	it_should_behave_like "an object with Configurability"
-
 
 	it "has a VERSION constant" do
 		expect( described_class::VERSION ).to match( /\A\d+\.\d+\.\d+/ )
 	end
 
 
-	describe "configurability", log: :fatal do
+	describe "configurability" do
 
 		before( :all ) do
-			@original_config_env = ENV[Assemblage::CONFIG_ENV]
+			@original_config_env = ENV[ Assemblage::CONFIG_ENV ]
 		end
 
 		before( :each ) do
-			ENV.delete(Assemblage::CONFIG_ENV)
-			Configurability.configure_objects( Configurability.default_config )
+			ENV.delete( Assemblage::CONFIG_ENV )
 		end
 
 		after( :all ) do
 			Configurability.reset
-			ENV[Assemblage::CONFIG_ENV] = @original_config_env
+			ENV[ Assemblage::CONFIG_ENV ] = @original_config_env
 		end
 
 
 		it "can return the loaded configuration" do
+			Configurability.configure_objects( Configurability.default_config )
 			expect( described_class.config ).to be( Configurability.loaded_config )
 		end
 
 
 		it "knows whether or not the config has been loaded" do
+			Configurability.configure_objects( Configurability.default_config )
 			expect( described_class ).to be_config_loaded
 			Configurability.reset
 			expect( described_class ).to_not be_config_loaded
@@ -71,7 +70,7 @@ describe Assemblage do
 			expect( Assemblage::LOCAL_CONFIG_FILE ).to receive( :exist? ).
 				and_return( false )
 			expect( Configurability::Config ).to receive( :load ).
-				with( Assemblage::DEFAULT_CONFIG_FILE, {} ).
+				with( Pathname.pwd + Assemblage::DEFAULT_CONFIG_FILE, {} ).
 				and_return( config_object )
 			expect( config_object ).to receive( :install )
 

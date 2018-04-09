@@ -1,14 +1,12 @@
 #!/usr/bin/env rspec -cfd
 
-require 'tmpdir'
-require 'fileutils'
-
 require_relative '../spec_helper'
 
-require 'assemblage/server'
+require 'tmpdir'
+require 'assemblage/worker'
 
 
-describe Assemblage::Server do
+describe Assemblage::Worker do
 
 	before( :all ) do
 		@original_store_dir = Assemblage::Auth.cert_store_dir
@@ -43,10 +41,6 @@ describe Assemblage::Server do
 			config_file = assemblage_dir + 'config.yml'
 			expect( config_file ).to exist
 			expect( config_file.read ).to start_with( '--' )
-
-			database = assemblage_dir + 'assemblage.db'
-			expect( database ).to exist
-			expect( database ).to be_empty
 		end
 
 
@@ -63,52 +57,57 @@ describe Assemblage::Server do
 	end
 
 
+
 	describe "signal-handling" do
 
 		before( :each ) do
 			@old_pwd = Pathname.pwd
 
+			server_cert = CZTop::Certificate.new
+			server_pubkey = server_cert.public_key
+
 			described_class.setup_run_directory( assemblage_dir )
-			described_class.generate_cert
-			described_class.create_database
-
 			Assemblage.use_run_directory( assemblage_dir )
-			@server = described_class.new
+			described_class.generate_cert
+			described_class.add_server( 'tcp://127.0.0.1:12718', server_pubkey )
 
-			@server_thread = Thread.new do
+			@worker = described_class.new( server: 'tcp://127.0.0.1:12718' )
+
+			@worker_thread = Thread.new do
 				Thread.current.abort_on_exception = true
-				@server.run
+				@worker.run
 			end
 		end
 
 		after( :each ) do
-			@server.stop if @server
-			@server_thread.kill unless !@server_thread || @server_thread.join( 2 )
+			@worker.stop if @worker
+			@worker_thread.kill unless !@worker_thread || @worker_thread.join( 2 )
 			Dir.chdir( @old_pwd )
 		end
 
 
 		it "stops when sent a TERM signal" do
-			wait( 1 ).for { @server.running? }.to be_truthy
-			@server.simulate_signal( :TERM )
-			wait( 1 ).for { @server.stopped? }.to be_truthy
+			wait( 1 ).for { @worker.running? }.to be_truthy
+			@worker.simulate_signal( :TERM )
+			wait( 1 ).for { @worker.stopped? }.to be_truthy
 		end
 
 
 		it "stops when sent an INT signal" do
-			wait( 1 ).for { @server.running? }.to be_truthy
-			@server.simulate_signal( :INT )
-			wait( 1 ).for { @server.stopped? }.to be_truthy
+			wait( 1 ).for { @worker.running? }.to be_truthy
+			@worker.simulate_signal( :INT )
+			wait( 1 ).for { @worker.stopped? }.to be_truthy
 		end
 
 
 		it "stops when sent a HUP signal" do
-			wait( 1 ).for { @server.running? }.to be_truthy
-			@server.simulate_signal( :HUP )
-			wait( 1 ).for { @server.stopped? }.to be_truthy
+			wait( 1 ).for { @worker.running? }.to be_truthy
+			@worker.simulate_signal( :HUP )
+			wait( 1 ).for { @worker.stopped? }.to be_truthy
 		end
 
 	end
+
 
 end
 

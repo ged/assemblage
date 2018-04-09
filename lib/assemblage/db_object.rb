@@ -25,6 +25,9 @@ class Assemblage::DbObject
 	       Configurability
 
 
+	DEFAULT_DB = Sequel.mock( 'sqlite' )
+
+
 	# Loggability API -- log to Assemblage's logger
 	log_to :assemblage
 
@@ -53,7 +56,7 @@ class Assemblage::DbObject
 		##
 		# :singleton-method:
 		# The URI of the database to connect to
-		setting :uri, default: 'sqlite:/'
+		setting :uri, default: nil
 
 		##
 		# :singleton-method:
@@ -72,6 +75,8 @@ class Assemblage::DbObject
 		super
 
 		self.descendents.each do |subclass|
+			next unless subclass.name
+			subclass.require_valid_table = false
 			subclass.dataset = newdb[ subclass.table_name ]
 		end
 	end
@@ -92,7 +97,9 @@ class Assemblage::DbObject
 
 	### Require the model classes once the database connection has been established
 	def self::require_models
-		self.log.debug "Loading registered model classes."
+		return unless self.uri
+
+		self.log.debug "Loading registered model classes for %p." % [ self.uri ]
 		logging_override = Loggability.for_logger( self ).with_level( :fatal )
 		self.registered_models.each do |path|
 			logging_override.call { require path }
@@ -105,7 +112,7 @@ class Assemblage::DbObject
 		super
 
 		if self.uri
-			Loggability[ Assemblage::DbObject ].debug "Connecting to %s" % [ self.uri ]
+			Loggability[ Assemblage::DbObject ].info "Connecting to %s" % [ self.uri ]
 			self.db = Sequel.connect( self.uri, self.options )
 		end
 
@@ -142,10 +149,13 @@ class Assemblage::DbObject
 	end
 
 
+	Assemblage::DbObject.register_model( 'assemblage/client' )
+
 	# Load models after the system is configured
 	Assemblage.after_configure do
 		Assemblage::DbObject.require_models
 	end
+
 
 end # class Assemblage::DbObject
 

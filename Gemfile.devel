@@ -2,4 +2,4 @@ source "https://rubygems.org/"
 gemspec
 
 gem 'hglib', path: '../hglib'
-
+gem 'cztop-reactor', path: '../CZTop-Reactor'

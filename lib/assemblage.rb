@@ -8,8 +8,7 @@ require 'configurability'
 
 # Toplevel namespace
 module Assemblage
-	extend Loggability,
-	       Configurability
+	extend Loggability
 
 	# Package version
 	VERSION = '0.0.1'
@@ -24,7 +23,7 @@ module Assemblage
 	LOCAL_CONFIG_FILE = Pathname( '~/.assemblage.yml' ).expand_path
 
 	# The name of the config file that's loaded if none is specified.
-	DEFAULT_CONFIG_FILE = Pathname( 'config.yml' ).expand_path
+	DEFAULT_CONFIG_FILE = 'config.yml'
 
 	# The data directory for the gem
 	DATADIR = if ENV['ASSEMBLAGE_DATADIR']
@@ -41,16 +40,11 @@ module Assemblage
 	log_as :assemblage
 
 
-	# Configurability API
-	configurability( :assemblage ) do
-
-		setting :directory
-
-	end
-
 	# Autoload subordinate modules
 	autoload :Auth, 'assemblage/auth'
 	autoload :CLI, 'assemblage/cli'
+	autoload :DbObject, 'assemblage/db_object'
+	autoload :Protocol, 'assemblage/protocol'
 	autoload :Server, 'assemblage/server'
 	autoload :Worker, 'assemblage/worker'
 
@@ -65,7 +59,7 @@ module Assemblage
 
 	##
 	# True if the after_configure hooks have already (started to) run.
-	singleton_predicate_reader :after_configure_hooks_run
+	singleton_predicate_accessor :after_configure_hooks_run
 	@after_configure_hooks_run = false
 
 
@@ -90,7 +84,7 @@ module Assemblage
 	def self::load_config( config_file=nil, defaults=nil )
 		config_file ||= ENV[ CONFIG_ENV ]
 		config_file ||= LOCAL_CONFIG_FILE if LOCAL_CONFIG_FILE.exist?
-		config_file ||= DEFAULT_CONFIG_FILE
+		config_file ||= Pathname.pwd + DEFAULT_CONFIG_FILE
 
 		defaults    ||= Configurability.gather_defaults
 
@@ -99,6 +93,8 @@ module Assemblage
 		config = Configurability::Config.load( config_file, defaults )
 
 		config.install
+
+		self.call_after_configure_hooks
 	end
 
 
@@ -124,6 +120,21 @@ module Assemblage
 			hook.call
 		end
 	end
+
+
+	### If +dir+ is non-nil, treat it as a directory name, change the primary
+	### working directory to it, and load any config file found there if there's not
+	### already a config loaded. If +dir+ is +nil+, do nothing.
+	def self::use_run_directory( dir=nil )
+		return unless dir
+
+		dir = Pathname( dir )
+		Dir.chdir( dir )
+		config = dir + DEFAULT_CONFIG_FILE
+
+		Assemblage.load_config( dir ) if config.readable? && !Assemblage.config_loaded?
+	end
+
 
 end # module Assemblage
 

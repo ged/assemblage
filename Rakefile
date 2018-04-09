@@ -38,6 +38,7 @@ hoespec = Hoe.spec 'assemblage' do |spec|
 	spec.dependency 'gli', '~> 2.17'
 	spec.dependency 'tty', '~> 0.7'
 	spec.dependency 'sequel', '~> 5.6'
+	spec.dependency 'msgpack', '~> 1.2'
 	spec.dependency 'cztop-reactor', '~> 0.3'
 
 	spec.dependency 'hoe-deveiate',            '~> 0.3', :developer
