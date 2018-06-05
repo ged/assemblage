@@ -19,8 +19,8 @@ module Assemblage::CLI::CreateServer
 
 
 	WORKER_ADVICE = %{
-		Now you can register this worker from a server run directory like so:
-		  assemblage add worker %{name} "%{public_key}"
+		Now you can register this worker with a server like so:
+		  assemblage add worker %{name} "%{public_key}" <server directory>
 
 		Once it is registered, you can start the assembly worker like so:
 		  assemblage start worker %{directory}

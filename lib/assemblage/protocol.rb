@@ -65,7 +65,7 @@ module Assemblage::Protocol
 	###############
 
 	### Encode a message of the specified +type+ and return it as a CZTop::Message.
-	def encode( type, data, header={} )
+	def encode( type, data, **header )
 		header = DEFAULT_HEADER.merge( symbolify_keys(header) ).merge( type: type )
 		Assemblage::Protocol.check_message_header( header )
 
@@ -107,10 +107,5 @@ module Assemblage::Protocol
 		return Assemblage::Protocol.encode( :goodbye, [] )
 	end
 
-
-	### Construct a message for an observer event of the given +type+ and +data+.
-	def observer_event( type, *data )
-		return Assemblage::Protocol.encode( :observer_event, [type, *data] )
-	end
 
 end # module Assemblage::Protocol

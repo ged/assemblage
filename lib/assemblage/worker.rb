@@ -1,6 +1,8 @@
 # -*- ruby -*-
 # frozen_string_literal: true
 
+require 'fiber'
+require 'state_machines'
 require 'socket'
 require 'cztop/reactor'
 require 'cztop/reactor/signal_handling'
@@ -24,6 +26,12 @@ class Assemblage::Worker
 
 	# The name given to workers by default
 	DEFAULT_WORKER_NAME = "#{Socket.gethostname.gsub('.', '-').downcase}-worker1"
+
+	# The list of valid actions for a worker
+	HANDLED_MESSAGE_TYPES = %i[hello goodbye new_assembly]
+
+	# The time between checks for new assemblies to work on
+	ASSEMBLY_TIMER_INTERVAL = 5.seconds
 
 
 	# Loggability API -- log to the Assemblage logger.
@@ -63,6 +71,46 @@ class Assemblage::Worker
 	end
 
 
+	state_machine( :status, initial: :unstarted ) do
+
+		state :unstarted,
+			:connecting,
+			:waiting,
+			:working,
+			:stopping
+
+		event :on_hello_message do
+			transition :connecting => :waiting
+		end
+
+		event :on_new_assembly_message do
+			transition :waiting => :working
+		end
+
+		event :on_assembly_finished do
+			transition :working => :waiting, if: :assembly_queue_empty?
+		end
+
+		event :on_goodbye_message do
+			transition :waiting => :connecting
+		end
+
+		event :stop do
+			transition any => :stopping
+		end
+
+
+		after_transition any => any, do: :log_transition
+
+		after_transition :connecting => :waiting, do: :start_status_report_timer
+		after_transition [:waiting, :working] => :stopping, do: :stop_status_report_timer
+		after_transition [:waiting, :working] => :stopping, do: :send_goodbye
+		after_transition any - [:stopping] => :stopping, do: :shutdown
+
+		after_failure do: :log_transition_failure
+	end
+
+
 	### Generate a client CZTop::Certificate for the worker.
 	def self::generate_cert
 		Assemblage::Auth.generate_local_cert unless Assemblage::Auth.has_local_cert?
@@ -97,19 +145,16 @@ class Assemblage::Worker
 	end
 
 
-	### Test the given +public_key+ with a connection to the given +url+. Raise an
-	### exception if there is a problem.
-	def self::test_connection( url )
-		instance = new( server: url )
-	end
-
-
 	### Add a new server at the given +url+ to the current run directory.
 	def self::add_server( url, public_key )
 		config = Assemblage.config
-		if config.path
+
+		if config&.path
+			self.log.debug "Writing server config to %s" % [ config.path ]
 			config.assemblage.worker.server = url
 			config.write
+		else
+			self.log.warn "Couldn't write server URL to the config: not loaded from a file!"
 		end
 
 		# :TODO: Change this when/if workers support listening to multiple servers.
@@ -120,7 +165,7 @@ class Assemblage::Worker
 
 	### Run an instance of the worker from the specified +run_directory+.
 	def self::run( run_directory=nil, **options )
-		Assemblage.use_run_directory( run_directory )
+		Assemblage.use_run_directory( run_directory, reload_config: true )
 		return self.new( **options ).run
 	end
 
@@ -131,12 +176,16 @@ class Assemblage::Worker
 
 	### Create a nwe Assemblage::Worker.
 	def initialize( name: nil, server: nil, tags: nil )
-		@name    = name || Assemblage::Worker.name or raise "No worker name specified."
-		@server  = server || Assemblage::Worker.server or raise "No server specified."
-		@tags    = Array( tags || Assemblage::Worker.tags )
-		@reactor = CZTop::Reactor.new
-		@socket  = nil
-		@running = false
+		@name       = name || Assemblage::Worker.name or raise "No worker name specified."
+		@server     = server || Assemblage::Worker.server or raise "No server specified."
+		@tags       = Array( tags || Assemblage::Worker.tags )
+		@reactor    = CZTop::Reactor.new
+		@socket     = nil
+		@start_time = nil
+
+		@assembly_builders   = []
+		@send_queue          = []
+		@status_report_timer = nil
 	end
 
 
@@ -162,8 +211,17 @@ class Assemblage::Worker
 	attr_reader :socket
 
 	##
-	# True if the server is running
-	attr_predicate :running
+	# The Time the worker started
+	attr_accessor :start_time
+
+	##
+	# The Assemblage::AssemblyBuilders that have been created for pending
+	# assemblies.
+	attr_accessor :assembly_builders
+
+	##
+	# The queue of assembly reports the worker has yet to report back to the server
+	attr_reader :report_queue
 
 
 	### Run the server.
@@ -174,12 +232,14 @@ class Assemblage::Worker
 		@socket = self.create_client_socket
 		self.reactor.register( @socket, :read, &self.method(:on_socket_event) )
 
+		self.start_assembly_timer
+
 		self.log.debug "Starting event loop."
 		self.with_signal_handler( self.reactor, *HANDLED_SIGNALS ) do
-			@running = true
+			@start_time = Time.now
 			self.reactor.start_polling( ignore_interrupts: true )
 		end
-		@running = false
+		@start_time = null
 		self.log.debug "Exited event loop."
 	end
 
@@ -214,9 +274,128 @@ class Assemblage::Worker
 	end
 
 
+	### Periodically check for new assemblies to work on. If there are some, start
+	### working on them.
+	def start_assembly_timer
+		self.reactor.
+			add_periodic_timer( ASSEMBLY_TIMER_INTERVAL, &self.method(:work_on_assemblies) )
+	end
+
+
+	### Return the AssemblyBuilder that is currently working, if any.
+	def current_assembly_builder
+		return self.assembly_builders.first
+	end
+
+
+	### Start the next assembly if there is one and the worker is idle.
+	def work_on_assemblies
+		builder = self.current_assembly_builder or return # No builders queued
+		result = builder.resume
+
+		if result
+			self.log.info "Builder finished; queueing result."
+			self.on_assembly_finished( builder, result )
+		else
+			self.log.debug "Building still working."
+		end
+	end
+
+
+	### Notify the worker that the assembly being built by the specified +builder+
+	### has finished with the given +result+.
+	def on_assembly_finished( builder, result )
+		self.send_result( builder.assembly_id, result )
+		super
+	end
+
+
+	### Start the timer that periodically reports on the worker's status to the
+	### server/s it's connected to.
+	def start_status_report_timer
+		@status_report_timer = self.reactor.
+			add_periodic_timer( STATUS_REPORT_INTERVAL, &self.method(:send_status_report) )
+	end
+
+
+	### Stop the timer that periodically reports on the worker's status.
+	def stop_status_report_timer
+		self.reactor.remove_timer( @status_report_timer )
+	end
+
+
+	### Return the number of seconds the worker has been running.
+	def uptime
+		return Time.now - self.start_time
+	end
+
+
+	### Queue a status report message for the worker.
+	def send_status_report
+		report = {
+			version: Assemblage::VERSION,
+			status: self.status,
+			uptime: self.uptime
+		}
+
+		message = Assemblage::Protocol.encode( :status_report, report )
+
+		self.send_message( message )
+	end
+
+
+	### Queue a result message for the worker.
+	def send_result( assembly_id, result )
+		message = Assemblage::Protocol.encode( :result, assembly_id, result )
+		self.send_message( message )
+	end
+
+
+	### Queue up the specified +message+ for sending to the server.
+	def send_message( message )
+		self.send_queue << message
+		self.reactor.enable_events( self.socket, :write ) unless
+			self.reactor.event_enabled?( self.socket, :write )
+	end
+
+
 	### Handle an event on the CLIENT socket.
 	def on_socket_event( event )
-		self.log.debug "Got socket event: %p" % [ event ]
+		if event.readable?
+			self.handle_readable_io_event( event )
+		elsif event.writable?
+			self.handle_writable_io_event( event )
+		else
+			raise "Socket event was neither readable nor writable!? (%p)" % [ event ]
+		end
+	end
+
+
+	### Handle a readable event on a socket.
+	def handle_readable_io_event( event )
+		self.log.debug "Got socket read event: %p" % [ event ]
+		msg = event.socket.receive
+		type, data, header = Assemblage::Protocol.decode( msg )
+
+		unless HANDLED_MESSAGE_TYPES.include?( type )
+			self.log.error "Got unhandled message type %p" % [ type ]
+			raise "Invalid action %p!" % [ type ]
+		end
+
+		method_name = "on_%s_message" % [ type ]
+		handler = self.method( method_name )
+		handler.call( data, header )
+	end
+
+
+	### Handle the socket becoming writable by sending the next queued message to the hub and
+	### unregistered it from writable events if that empties the queue.
+	def handle_writable_io_event( event )
+		if message = self.send_queue.shift
+			message.send_to( self.socket )
+		else
+			self.reactor.disable_events( self.socket, :write )
+		end
 	end
 
 
@@ -229,6 +408,25 @@ class Assemblage::Worker
 		else
 			super
 		end
+	end
+
+
+	### Handle a `hello` message from the server.
+	def on_hello_message( info, * )
+		self.log.info "Connected. Waiting for an assembly to build."
+		super
+	end
+
+
+	### Handle a `new_assembly` message from the server.
+	def on_new_assembly_message( assembly, * )
+		self.log.info "Creating a new builder for: %p" % [ assembly ]
+		builder = Assemblage::AssemblyBuilder.new( assembly )
+		builder.start
+
+		self.builder_queue << builder
+
+		super
 	end
 
 end # class Assemblage::Worker

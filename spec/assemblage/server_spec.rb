@@ -31,6 +31,70 @@ describe Assemblage::Server do
 	it_should_behave_like "an object with Configurability"
 
 
+	describe "network protocol" do
+
+		before( :all ) do
+			@old_pwd = Pathname.pwd
+			@worker_cert = CZTop::Certificate.new
+
+			described_class.setup_run_directory( assemblage_dir )
+			described_class.generate_cert
+			described_class.create_database
+
+			Assemblage.use_run_directory( assemblage_dir )
+
+			described_class.add_worker( 'testworker1', @worker_cert.public_key )
+		end
+
+		before( :each ) do
+			@server = described_class.new
+			@server_thread = Thread.new do
+				Thread.current.abort_on_exception = true
+				@server.run
+			end
+		end
+
+		after( :each ) do
+			@server.stop if @server
+			@server_thread.kill unless !@server_thread || @server_thread.join( 2 )
+		end
+
+		after( :all ) do
+			Dir.chdir( @old_pwd )
+		end
+
+
+		let( :worker_cert ) { @worker_cert }
+		let( :server_public_cert ) { CZTop::Certificate.new_from(described_class.public_key) }
+		let( :endpoint ) { @server.last_endpoint }
+		let( :sock ) do
+			sock = CZTop::Socket::CLIENT.new
+			sock.CURVE_client!( worker_cert, server_public_cert )
+			sock.options.linger = 0
+			sock.connect( endpoint )
+			sock
+		end
+
+
+		describe "the status command" do
+
+			it "returns a Map with information about the server" do
+				msg = Assemblage::Protocol.request( :status )
+
+				msg.send_to( sock )
+				resmsg = sock.receive
+
+				hdr, body = Assemblage::Protocol.decode( resmsg )
+				expect( hdr ).to include( 'success' => true )
+				expect( body.length ).to eq( 4 )
+				expect( body ).to include( 'server_version', 'state', 'uptime' )
+			end
+
+		end
+
+	end
+
+
 	describe "new directory setup" do
 
 		it "can set up a new run directory" do

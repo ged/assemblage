@@ -160,7 +160,7 @@ Now when commits arrive at our repo, it will send events to the assembly server,
 - get a notification of the commit
 - clone the repository checked out to that commit
 - look for an assembly script called `commit` in a directory called `.assemblies/` (by default)
-- if it finds one, it will run the script
+- if it finds one, it will run the script from the cloned repo
 - it will then send back any files contained in the `.assemblies/` subdirectory with the SHA of the commit (if it exists) along with the exit code of the script.
 
 

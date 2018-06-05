@@ -6,6 +6,8 @@ Sequel.migration do
 		create_table( :repositories ) do
 			primary_key :id
 			String :client_name, null: false
+			String :type, null: false
+			String :url, null: false
 		end
 
 		create_table( :clients ) do
@@ -19,6 +21,7 @@ Sequel.migration do
 
 		create_table( :assemblies ) do
 			primary_key :id
+			String :name, null: false
 			foreign_key :repository_id, :repositories, null: false,
 				on_delete: :cascade
 		end
@@ -26,6 +29,7 @@ Sequel.migration do
 		create_table( :assembly_results ) do
 			primary_key :id
 			Time :created_at
+			Time :finished_at
 			foreign_key :assembly_id, :assemblies, null: false,
 				on_delete: :cascade
 			foreign_key :client_id, :clients, null: false,

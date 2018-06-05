@@ -114,6 +114,7 @@ class Assemblage::DbObject
 		if self.uri
 			Loggability[ Assemblage::DbObject ].info "Connecting to %s" % [ self.uri ]
 			self.db = Sequel.connect( self.uri, self.options )
+			Assemblage::DbObject.require_models
 		end
 
 	end
@@ -150,12 +151,6 @@ class Assemblage::DbObject
 
 
 	Assemblage::DbObject.register_model( 'assemblage/client' )
-
-	# Load models after the system is configured
-	Assemblage.after_configure do
-		Assemblage::DbObject.require_models
-	end
-
 
 end # class Assemblage::DbObject
 

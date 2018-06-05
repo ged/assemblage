@@ -6,9 +6,11 @@ hglib
 hoe-deveiate
 loggability
 msgpack
+pluggability
 rdoc-generator-fivefish
 rspec-wait
 sequel
 simplecov
 sqlite3
+state_machines
 tty

@@ -231,7 +231,7 @@ module Assemblage
 
 
 		### Monitor event callback for successful auth events.
-		def on_handshake_succeed( fd, endpoint )
+		def on_handshake_succeeded( fd, endpoint )
 			self.log.debug "Client socket on FD %d handshake succeeded" % [ fd ]
 		end
 

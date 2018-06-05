@@ -41,6 +41,7 @@ module Assemblage
 
 
 	# Autoload subordinate modules
+	autoload :AssemblyBuilder, 'assemblage/assembly_builder'
 	autoload :Auth, 'assemblage/auth'
 	autoload :CLI, 'assemblage/cli'
 	autoload :DbObject, 'assemblage/db_object'
@@ -125,14 +126,16 @@ module Assemblage
 	### If +dir+ is non-nil, treat it as a directory name, change the primary
 	### working directory to it, and load any config file found there if there's not
 	### already a config loaded. If +dir+ is +nil+, do nothing.
-	def self::use_run_directory( dir=nil )
+	def self::use_run_directory( dir=nil, reload_config: false )
 		return unless dir
+		dir = Pathname( dir ).expand_path
 
-		dir = Pathname( dir )
+		self.log.info "Using %s as the run directory" % [ dir ]
 		Dir.chdir( dir )
-		config = dir + DEFAULT_CONFIG_FILE
+		config = dir + Assemblage::DEFAULT_CONFIG_FILE
 
-		Assemblage.load_config( dir ) if config.readable? && !Assemblage.config_loaded?
+		Assemblage.load_config( config ) if
+			config.readable? && (reload_config || !Assemblage.config_loaded?)
 	end
 
 

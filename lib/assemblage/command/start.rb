@@ -21,18 +21,20 @@ module Assemblage::CLI::StartServer
 		start.arg :DIRECTORY, :optional
 		start.command :server do |server|
 			server.action do |globals, options, args|
-				directory = Pathname( args.shift || '.' )
+				Assemblage::Server.run( args.shift )
+			end
+		end
 
-				Dir.chdir( directory )
-				Assemblage.load_config( directory + 'config.yml' )
 
-				server = Assemblage::Server.new
-
-				prompt.say( headline_string "Starting assembly server..." )
-				thr = Thread.new { server.run }
-				sleep 0.2 until server.running?
-				prompt.say( "  listening at: %s" % [server.last_endpoint] )
-				thr.join
+		start.desc 'Start an assembly worker'
+		start.long_desc <<-END_DESC
+		Start an Assemblage worker in the specified DIRECTORY. If not specified, the
+		DIRECTORY will default to the current working directory.
+		END_DESC
+		start.arg :DIRECTORY, :optional
+		start.command :worker do |server|
+			server.action do |globals, options, args|
+				Assemblage::Worker.run( args.shift )
 			end
 		end
 

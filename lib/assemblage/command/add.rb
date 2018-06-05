@@ -19,6 +19,7 @@ module Assemblage::CLI::AddServer
 		END_DESC
 		add.arg :NAME
 		add.arg :PUBLIC_KEY
+		add.arg :SERVER_DIRECTORY, :optional
 		add.command :worker do |worker|
 
 			worker.action do |globals, options, args|
@@ -41,6 +42,7 @@ module Assemblage::CLI::AddServer
 		END_DESC
 		add.arg :URL
 		add.arg :PUBLIC_KEY
+		add.arg :WORKER_DIRECTORY, :optional
 		add.command :server do |server|
 
 			server.action do |globals, options, args|
@@ -49,10 +51,6 @@ module Assemblage::CLI::AddServer
 
 				Assemblage.use_run_directory( args.shift )
 				Assemblage::Worker.add_server( url, public_key )
-
-				prompt.say "Testing connection to %s..." % [ url ]
-				Assemblage::Worker.test_connection( url, public_key )
-				prompt.say "success."
 
 				prompt.say "done."
 			end
